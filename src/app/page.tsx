@@ -49,7 +49,7 @@ export default function Home() {
   return (
     <main className="min-h-screen p-6 flex items-start justify-center">
       <div className="w-full max-w-xl space-y-4">
-        <h1 className="text-2xl font-bold">Nestory</h1>
+        <h1 className="text-2xl font-bold">Nestory2</h1>
         <p className="text-sm text-gray-600">
           מכניסים שם + בוחרים נושא → מקבלים סיפור מותאם.
         </p>
