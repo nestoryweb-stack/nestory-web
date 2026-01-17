@@ -1,65 +1,103 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+
+const TOPICS = [
+  { key: "space", title: "הרפתקה בחלל" },
+  { key: "ocean", title: "מסע בים" },
+  { key: "jungle", title: "ג׳ונגל מסתורי" },
+] as const;
 
 export default function Home() {
+  const [child, setChild] = useState("");
+  const [topic, setTopic] = useState<(typeof TOPICS)[number]["key"]>("space");
+  const [loading, setLoading] = useState(false);
+  const [story, setStory] = useState<string>("");
+  const [topicTitle, setTopicTitle] = useState<string>("");
+  const [error, setError] = useState<string>("");
+
+  async function generate() {
+    setLoading(true);
+    setError("");
+    setStory("");
+    setTopicTitle("");
+
+    try {
+      const res = await fetch("/api/story", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ child, topic }),
+      });
+
+      const text = await res.text();
+      let data: any;
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`Server returned non-JSON:\n${text.slice(0,200)}`); }
+      if (!res.ok) throw new Error(data?.error || "שגיאה לא ידועה");
+
+      if (!res.ok) throw new Error(data?.error || "שגיאה לא ידועה");
+
+      setTopicTitle(data.topicTitle);
+      setStory(data.story);
+    } catch (e: any) {
+      setError(e.message || "שגיאה");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <main className="min-h-screen p-6 flex items-start justify-center">
+      <div className="w-full max-w-xl space-y-4">
+        <h1 className="text-2xl font-bold">Nestory</h1>
+        <p className="text-sm text-gray-600">
+          מכניסים שם + בוחרים נושא → מקבלים סיפור מותאם.
+        </p>
+
+        <div className="rounded-2xl border p-4 space-y-3">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">שם הילד/ה</label>
+            <input
+              className="w-full rounded-xl border px-3 py-2"
+              value={child}
+              onChange={(e) => setChild(e.target.value)}
+              placeholder="לדוגמה: נועם"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">נושא</label>
+            <select
+              className="w-full rounded-xl border px-3 py-2"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value as any)}
+            >
+              {TOPICS.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={generate}
+            disabled={loading}
+            className="w-full rounded-xl bg-black text-white py-2 disabled:opacity-60"
           >
-            Documentation
-          </a>
+            {loading ? "מייצר..." : "צור סיפור"}
+          </button>
+
+          {error && <div className="text-sm text-red-600">{error}</div>}
         </div>
-      </main>
-    </div>
+
+        {(topicTitle || story) && (
+          <div className="rounded-2xl border p-4 space-y-2">
+            {topicTitle && <div className="font-semibold">{topicTitle}</div>}
+            <div className="whitespace-pre-wrap leading-7">{story}</div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

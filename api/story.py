@@ -53,7 +53,6 @@ class handler(BaseHTTPRequestHandler):
             return _send_json(self, 500, {"error": "שגיאת שרת", "details": str(e)})
 
     def do_GET(self):
-        # אופציונלי: להחזיר את רשימת הנושאים
         return _send_json(self, 200, {
             "topics": [{"key": k, "title": v["title"]} for k, v in TOPICS.items()]
         })
