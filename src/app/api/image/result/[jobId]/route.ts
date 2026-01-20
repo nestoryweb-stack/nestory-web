@@ -19,7 +19,7 @@ export async function GET(
 
     if (!jobIdRaw) {
       return Response.json(
-        { ok: false, error: "Missing jobId !!", debug: { url: req.url } },
+        { ok: false, error: "Missing jobId !!!", debug: { url: req.url } },
         { status: 400 }
       );
     }
