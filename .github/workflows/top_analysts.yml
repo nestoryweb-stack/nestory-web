@@ -158,6 +158,30 @@ jobs:
                       scored += 1
 
                       if firm == "Rosenblatt":
+                          pt = row.get("currentPriceTarget", None)
+                          try:
+                              pt = float(pt) if pt and str(pt) not in ("nan","None","") else None
+                          except:
+                              pt = None
+
+                          # Check if PT was hit within 12 months
+                          pt_hit = None
+                          pt_days = None
+                          pt_upside_pct = None
+                          if pt and price_in > 0:
+                              pt_upside_pct = (pt - price_in) / price_in * 100
+                              window = hist[(hist.index >= rec_date) & (hist.index <= exit_dt)]
+                              if not window.empty:
+                                  if is_buy:
+                                      hit_dates = window[window["High"] >= pt]
+                                  else:
+                                      hit_dates = window[window["Low"] <= pt]
+                                  if not hit_dates.empty:
+                                      pt_hit = True
+                                      pt_days = (hit_dates.index[0] - rec_date).days
+                                  else:
+                                      pt_hit = False
+
                           rosenblatt_calls.append({
                               "ticker": ticker,
                               "date": rec_date.date(),
@@ -167,6 +191,10 @@ jobs:
                               "price_out": price_out,
                               "return_pct": pct,
                               "score": score,
+                              "pt": pt,
+                              "pt_upside_pct": pt_upside_pct,
+                              "pt_hit": pt_hit,
+                              "pt_days": pt_days,
                           })
 
                   if scored > 0:
@@ -194,11 +222,34 @@ jobs:
           print(f"{'='*70}")
           print(f"\n  {len(results)} firms qualified (5+ calls) | {sum(d['n'] for _,d in top10)} calls in top 10")
 
-          # Rosenblatt summary
+          # Rosenblatt price target analysis
           if rosenblatt_calls:
-              rb = results.get("Rosenblatt")
-              rb_str = f"avg {rb['avg']:.1f}%, {rb['wins']}/{rb['n']} wins" if rb else "< 5 calls"
-              print(f"\n  Rosenblatt total across S&P 500: {len(rosenblatt_calls)} calls — {rb_str}")
-              tickers_covered = sorted(set(c["ticker"] for c in rosenblatt_calls))
-              print(f"  Stocks covered: {', '.join(tickers_covered)}")
+              with_pt    = [c for c in rosenblatt_calls if c["pt"] is not None]
+              hit        = [c for c in with_pt if c["pt_hit"] is True]
+              miss       = [c for c in with_pt if c["pt_hit"] is False]
+              no_window  = [c for c in with_pt if c["pt_hit"] is None]
+              hit_days   = [c["pt_days"] for c in hit if c["pt_days"] is not None]
+              avg_upside = sum(c["pt_upside_pct"] for c in with_pt) / len(with_pt) if with_pt else 0
+
+              print(f"\n{'='*75}")
+              print("  ROSENBLATT — Price Target Analysis")
+              print(f"{'='*75}")
+              print(f"  Total calls analyzed:      {len(rosenblatt_calls)}")
+              print(f"  Calls with price target:   {len(with_pt)}  ({len(with_pt)/len(rosenblatt_calls)*100:.0f}%)")
+              print(f"  Avg PT upside from entry:  {avg_upside:.1f}%")
+              print(f"  PT HIT within 12 months:   {len(hit)}  ({len(hit)/len(with_pt)*100:.1f}% of calls with PT)")
+              print(f"  PT MISSED within 12 months:{len(miss)}  ({len(miss)/len(with_pt)*100:.1f}%)")
+              if hit_days:
+                  print(f"  Avg days to hit PT:        {sum(hit_days)/len(hit_days):.0f} days")
+                  print(f"  Fastest PT hit:            {min(hit_days)} days")
+
+              print(f"\n{'='*75}")
+              print(f"  {'Date':<12} {'Ticker':<7} {'Entry':>7} {'PT':>7} {'PT%':>6} {'Hit?':<6} {'Days':>5} {'12m Return':>10}")
+              print(f"  {'-'*73}")
+              for c in sorted(with_pt, key=lambda x: x["date"]):
+                  hit_str  = "HIT" if c["pt_hit"] else ("MISS" if c["pt_hit"] is False else "?")
+                  days_str = str(c["pt_days"]) if c["pt_days"] else "-"
+                  print(f"  {str(c['date']):<12} {c['ticker']:<7} {c['price_in']:>7.1f} {c['pt']:>7.1f} "
+                        f"{c['pt_upside_pct']:>5.1f}% {hit_str:<6} {days_str:>5} {c['return_pct']:>9.1f}%")
+              print(f"{'='*75}")
           PYEOF
