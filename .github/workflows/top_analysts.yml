@@ -6,6 +6,7 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: pip install yfinance pandas
 
-      - name: Run top analysts analysis
+      - name: Run top analysts analysis - full S&P 500
         run: |
           python3 - <<'PYEOF'
           import yfinance as yf
@@ -28,61 +29,96 @@ jobs:
           import warnings
           warnings.filterwarnings("ignore")
 
-          # Use UTC-aware datetimes so we never need to strip tz from yfinance data
           end_dt   = datetime.now(timezone.utc)
           start_dt = end_dt - timedelta(days=3*365)
 
-          # Quick connectivity test
-          print("Testing yfinance connectivity...")
-          test = yf.Ticker("AAPL")
-          ud = test.upgrades_downgrades
-          print(f"AAPL upgrades_downgrades: {type(ud).__name__}, shape: {ud.shape if ud is not None else 'None'}")
-          if ud is not None and not ud.empty:
-              print("Columns:", list(ud.columns))
-              print("Index tz:", ud.index.tz)
-              print("Sample:", ud.iloc[0].to_dict())
-
-          TICKERS = [
-              "AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","JPM","JNJ",
-              "V","PG","UNH","HD","MA","XOM","LLY","CVX","ABBV","BAC",
-              "KO","PFE","COST","MRK","WMT","MCD","CSCO","ORCL","ADBE","NFLX",
-              "AMD","QCOM","GS","MS","BLK","CAT","NEE","RTX",
+          SP500 = [
+              "MMM","AOS","ABT","ABBV","ACN","ADBE","AMD","AES","AFL","A",
+              "APD","ABNB","AKAM","ALB","ARE","ALGN","ALLE","LNT","ALL","GOOGL",
+              "GOOG","MO","AMZN","AMCR","AEE","AAL","AEP","AXP","AIG","AMT",
+              "AWK","AMP","AME","AMGN","APH","ADI","ANSS","AON","APA","AAPL",
+              "AMAT","APTV","ACGL","ADM","ANET","AJG","AIZ","T","ATO","ADSK",
+              "AZO","AVB","AVY","AXON","BKR","BALL","BAC","BBWI","BAX","BDX",
+              "BRK-B","BBY","BIO","TECH","BIIB","BLK","BX","BA","BCR","BMY",
+              "AVGO","BR","BRO","BF-B","BLDR","BSX","BWA","BG","CDNS","CZR",
+              "CPT","CPB","COF","CAH","KMX","CCL","CARR","CAT","CBOE","CBRE",
+              "CDW","CE","COR","CNC","CNX","CDAY","CF","CRL","SCHW","CHTR",
+              "CVX","CMG","CB","CHD","CI","CINF","CTAS","CSCO","C","CFG",
+              "CLX","CME","CMS","KO","CTSH","CL","CMCSA","CAG","COP","ED",
+              "STZ","CEG","COO","CPRT","GLW","CPAY","CTVA","CSGP","COST","CTRA",
+              "CRWD","CCI","CSX","CMI","CVS","DHR","DRI","DVA","DAY","DECK",
+              "DE","DAL","DVN","DXCM","FANG","DLR","DFS","DG","DLTR","D",
+              "DPZ","DOV","DOW","DHI","DTE","DUK","DD","EMN","ETN","EBAY",
+              "ECL","EIX","EW","EA","ELV","LLY","EMR","ENPH","ETR","EOG",
+              "EPAM","EQT","EFX","EQIX","EQR","ESS","EL","ETSY","EG","EVRG",
+              "ES","EXC","EXPE","EXPD","EXR","XOM","FFIV","FDS","FICO","FAST",
+              "FRT","FDX","FIS","FITB","FSLR","FE","FI","FMC","F","FTNT",
+              "FTV","FOXA","FOX","BEN","FCX","GRMN","IT","GE","GEHC","GEV",
+              "GEN","GNRC","GD","GIS","GM","GPC","GILD","GS","HAL","HIG",
+              "HAS","HCA","DOC","HSIC","HSY","HES","HPE","HLT","HOLX","HD",
+              "HON","HRL","HST","HWM","HPQ","HUBB","HUM","HBAN","HII","IBM",
+              "IEX","IDXX","ITW","INCY","IR","PODD","INTC","ICE","IFF","IP",
+              "IPG","INTU","ISRG","IVZ","INVH","IQV","IRM","JBHT","JBL","JKHY",
+              "J","JNJ","JCI","JPM","JNPR","K","KVUE","KDP","KEY","KEYS",
+              "KMB","KIM","KMI","KKR","KLAC","KHC","KR","LHX","LH","LRCX",
+              "LW","LVS","LDOS","LEN","LII","LILLY","LIN","LYV","LKQ","LMT",
+              "L","LOW","LULU","LYB","MTB","MRO","MPC","MKTX","MAR","MMC",
+              "MLM","MAS","MA","MTCH","MKC","MCD","MCK","MDT","MRK","META",
+              "MET","MTD","MGM","MCHP","MU","MSFT","MAA","MRNA","MHK","MOH",
+              "TAP","MDLZ","MPWR","MNST","MCO","MS","MOS","MSI","MSCI","NDAQ",
+              "NTAP","NFLX","NEM","NWSA","NWS","NEE","NKE","NI","NDSN","NSC",
+              "NTRS","NOC","NCLH","NRG","NUE","NVDA","NVR","NXPI","ORLY","OXY",
+              "ODFL","OMC","ON","OKE","ORCL","OTIS","PCAR","PKG","PANW","PH",
+              "PAYX","PAYC","PYPL","PNR","PEP","PFE","PCG","PM","PSX","PNW",
+              "PNC","POOL","PPG","PPL","PFG","PG","PGR","PLD","PRU","PEG",
+              "PTC","PSA","PHM","QRVO","PWR","QCOM","DGX","RL","RJF","RTX",
+              "O","REG","REGN","RF","RSG","RMD","RVTY","ROK","ROL","ROP",
+              "ROST","RCL","SPGI","CRM","SBAC","SLB","STX","SRE","NOW","SHW",
+              "SPG","SWKS","SJM","SW","SNA","SOLV","SO","LUV","SWK","SBUX",
+              "STT","STLD","STE","SYK","SMCI","SYF","SNPS","SYY","TMUS","TROW",
+              "TTWO","TPR","TRGP","TGT","TEL","TDY","TFX","TER","TSLA","TXN",
+              "TXT","TMO","TJX","TSCO","TT","TDG","TRV","TRMB","TFC","TYL",
+              "TSN","USB","UBER","UDR","ULTA","UNP","UAL","UPS","URI","UNH",
+              "UHS","VLO","VTR","VLTO","VRSN","VRSK","VZ","VRTX","VTRS","VICI",
+              "V","VST","VMC","WRB","GWW","WAB","WBA","WMT","DIS","WBD","WM",
+              "WAT","WEC","WFC","WELL","WST","WDC","WRK","WY","WHR","WMB",
+              "WTW","WYNN","XEL","XYL","YUM","ZBRA","ZBH","ZTS",
           ]
+
           BUY  = {"buy","strong buy","outperform","overweight","positive",
                   "market outperform","sector outperform","add","accumulate","top pick"}
           SELL = {"sell","strong sell","underperform","underweight","negative",
                   "reduce","market underperform","sector underperform"}
 
-          firm_scores  = defaultdict(list)
-          rosenblatt_calls = []  # detailed log for Rosenblatt
+          firm_scores     = defaultdict(list)
+          rosenblatt_calls = []
+          errors, skipped  = 0, 0
 
-          print(f"\nAnalyzing {len(TICKERS)} stocks ({start_dt.date()} -> {end_dt.date()})...\n")
+          print(f"Analyzing {len(SP500)} S&P 500 stocks ({start_dt.date()} -> {end_dt.date()})...\n")
 
-          for ticker in TICKERS:
+          for i, ticker in enumerate(SP500, 1):
               try:
                   stock = yf.Ticker(ticker)
 
                   recs = stock.upgrades_downgrades
                   if recs is None or recs.empty:
-                      print(f"  {ticker:<6} -> no upgrade/downgrade data")
+                      skipped += 1
                       continue
 
-                  # Normalize recs index to UTC-aware if needed
                   if recs.index.tz is None:
                       recs = recs.copy()
                       recs.index = recs.index.tz_localize("UTC")
 
                   recs = recs[recs.index >= start_dt]
                   if recs.empty:
-                      print(f"  {ticker:<6} -> no data in 3yr range")
+                      skipped += 1
                       continue
 
                   hist = stock.history(start=start_dt, end=end_dt)
                   if hist.empty:
-                      print(f"  {ticker:<6} -> no price history")
+                      skipped += 1
                       continue
 
-                  # Normalize hist index to UTC-aware if needed
                   if hist.index.tz is None:
                       hist = hist.copy()
                       hist.index = hist.index.tz_localize("UTC")
@@ -133,41 +169,36 @@ jobs:
                               "score": score,
                           })
 
-                  print(f"  {ticker:<6} -> {scored} calls scored")
-              except Exception as e:
-                  print(f"  {ticker:<6} -> ERROR: {e}")
+                  if scored > 0:
+                      print(f"  [{i:>3}/{len(SP500)}] {ticker:<6} -> {scored} calls scored")
 
-          # Rank firms with at least 3 calls
+              except Exception as e:
+                  errors += 1
+
+          print(f"\nDone. Errors: {errors}, Skipped (no data): {skipped}")
+
           results = {
               firm: {"avg": sum(v)/len(v), "n": len(v), "wins": sum(s > 0 for s in v)}
-              for firm, v in firm_scores.items() if len(v) >= 3
+              for firm, v in firm_scores.items() if len(v) >= 5
           }
           top10 = sorted(results.items(), key=lambda x: x[1]["avg"], reverse=True)[:10]
 
-          print(f"\n{'='*65}")
-          print("  TOP 10 - Investment Banks/Funds - 3yr Analyst Calls")
-          print(f"{'='*65}")
+          print(f"\n{'='*70}")
+          print("  TOP 10 - Investment Banks/Funds - Full S&P 500 - 3yr Returns")
+          print(f"{'='*70}")
           print(f"{'#':<4} {'Firm':<32} {'Avg Return':>12} {'Win Rate':>9} {'Calls':>7}")
-          print(f"{'-'*65}")
+          print(f"{'-'*70}")
           for rank, (firm, d) in enumerate(top10, 1):
               win_rate = d["wins"] / d["n"] * 100
               print(f"{rank:<4} {firm:<32} {d['avg']:>10.1f}% {win_rate:>7.1f}% {d['n']:>7}")
-          print(f"{'='*65}")
-          total_calls = sum(d['n'] for _,d in top10)
-          print(f"\n  Total: {total_calls} calls analyzed, {len(results)} firms with 3+ calls")
+          print(f"{'='*70}")
+          print(f"\n  {len(results)} firms qualified (5+ calls) | {sum(d['n'] for _,d in top10)} calls in top 10")
 
-          # Rosenblatt detailed breakdown
-          print(f"\n\n{'='*80}")
-          print("  ROSENBLATT — All Calls Detail")
-          print(f"{'='*80}")
-          print(f"{'Date':<12} {'Ticker':<8} {'Direction':<8} {'Grade':<20} {'Buy@':>8} {'Exit@':>8} {'Return':>8}  Result")
-          print(f"{'-'*80}")
-          for c in sorted(rosenblatt_calls, key=lambda x: x["date"]):
-              result = "WIN" if c["score"] > 0 else "LOSS"
-              print(f"{str(c['date']):<12} {c['ticker']:<8} {c['direction']:<8} {c['grade']:<20} "
-                    f"{c['price_in']:>8.2f} {c['price_out']:>8.2f} {c['return_pct']:>7.1f}%  {result}")
-          print(f"{'='*80}")
-          wins  = sum(1 for c in rosenblatt_calls if c["score"] > 0)
-          avg_r = sum(c["score"] for c in rosenblatt_calls) / len(rosenblatt_calls) if rosenblatt_calls else 0
-          print(f"  {len(rosenblatt_calls)} calls | {wins} wins ({wins/len(rosenblatt_calls)*100:.1f}%) | avg score: {avg_r:.1f}%")
+          # Rosenblatt summary
+          if rosenblatt_calls:
+              rb = results.get("Rosenblatt")
+              rb_str = f"avg {rb['avg']:.1f}%, {rb['wins']}/{rb['n']} wins" if rb else "< 5 calls"
+              print(f"\n  Rosenblatt total across S&P 500: {len(rosenblatt_calls)} calls — {rb_str}")
+              tickers_covered = sorted(set(c["ticker"] for c in rosenblatt_calls))
+              print(f"  Stocks covered: {', '.join(tickers_covered)}")
           PYEOF
