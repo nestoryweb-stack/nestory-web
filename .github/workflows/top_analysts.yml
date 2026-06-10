@@ -18,6 +18,51 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+      - name: Debug Finnhub API
+        env:
+          FINNHUB_KEY: d0p2eo1r01qr8ds13ktgd0p2eo1r01qr8ds13ku0
+        run: |
+          python3 - <<'EOF'
+          import requests, json, time
+
+          key = '$FINNHUB_KEY'
+          headers = {'X-Finnhub-Token': key}
+
+          # Test 1: upgrade-downgrade with date range
+          r = requests.get('https://finnhub.io/api/v1/stock/upgrade-downgrade',
+              params={'symbol': 'AAPL', 'from': '2024-01-01', 'to': '2025-01-01'},
+              headers=headers, timeout=10)
+          print('=== upgrade-downgrade with dates ===')
+          print('Status:', r.status_code)
+          d = r.json()
+          print('Type:', type(d).__name__, '| Length:', len(d) if isinstance(d, list) else '-')
+          if isinstance(d, list) and d:
+              print('Sample:', json.dumps(d[0], indent=2))
+          else:
+              print('Raw:', str(d)[:300])
+
+          # Test 2: without date range
+          r2 = requests.get('https://finnhub.io/api/v1/stock/upgrade-downgrade',
+              params={'symbol': 'AAPL'},
+              headers=headers, timeout=10)
+          print('\n=== upgrade-downgrade no dates ===')
+          print('Status:', r2.status_code)
+          d2 = r2.json()
+          print('Type:', type(d2).__name__, '| Length:', len(d2) if isinstance(d2, list) else '-')
+          if isinstance(d2, list) and d2:
+              print('Sample:', json.dumps(d2[0], indent=2))
+          else:
+              print('Raw:', str(d2)[:300])
+
+          # Test 3: candle
+          r3 = requests.get('https://finnhub.io/api/v1/stock/candle',
+              params={'symbol': 'AAPL', 'resolution': 'D',
+                      'from': 1704153600, 'to': 1704412800},
+              headers=headers, timeout=10)
+          print('\n=== candle price ===')
+          print('Status:', r3.status_code, '| Data:', str(r3.json())[:200])
+          EOF
+
       - name: Run top analysts script
         env:
           FINNHUB_KEY: d0p2eo1r01qr8ds13ktgd0p2eo1r01qr8ds13ku0
