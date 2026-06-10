@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: pip install yfinance pandas
 
-      - name: Test yfinance accessibility + run
+      - name: Run top analysts analysis
         run: |
           python3 - <<'PYEOF'
           import yfinance as yf
@@ -28,14 +28,14 @@ jobs:
           import warnings
           warnings.filterwarnings("ignore")
 
-          # Quick connectivity test
+          # Quick connectivity test using upgrades_downgrades (new yfinance API)
           print("Testing yfinance connectivity...")
           test = yf.Ticker("AAPL")
-          recs = test.recommendations
-          print(f"AAPL recommendations: {type(recs).__name__}, shape: {recs.shape if recs is not None else 'None'}")
-          if recs is not None and not recs.empty:
-              print("Sample columns:", list(recs.columns))
-              print("Sample row:", recs.iloc[0].to_dict())
+          ud = test.upgrades_downgrades
+          print(f"AAPL upgrades_downgrades: {type(ud).__name__}, shape: {ud.shape if ud is not None else 'None'}")
+          if ud is not None and not ud.empty:
+              print("Sample columns:", list(ud.columns))
+              print("Sample row:", ud.iloc[0].to_dict())
 
           TICKERS = [
               "AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","JPM","JNJ",
@@ -52,31 +52,38 @@ jobs:
           start_dt = end_dt - timedelta(days=3*365)
           firm_scores = defaultdict(list)
 
-          print(f"\nAnalyzing {len(TICKERS)} stocks ({start_dt.date()} → {end_dt.date()})...\n")
+          print(f"\nAnalyzing {len(TICKERS)} stocks ({start_dt.date()} -> {end_dt.date()})...\n")
 
           for ticker in TICKERS:
               try:
                   stock = yf.Ticker(ticker)
-                  recs  = stock.recommendations
+                  recs  = stock.upgrades_downgrades
                   if recs is None or recs.empty:
+                      print(f"  {ticker:<6} -> no data")
                       continue
-                  # normalize index
-                  if recs.index.tz is not None:
+                  # normalize index (DatetimeIndex with tz)
+                  if hasattr(recs.index, 'tz') and recs.index.tz is not None:
                       recs.index = recs.index.tz_localize(None)
+                  elif hasattr(recs.index, 'tz_convert'):
+                      recs.index = recs.index.tz_convert(None)
                   recs = recs[recs.index >= start_dt]
                   if recs.empty:
+                      print(f"  {ticker:<6} -> no data in range")
                       continue
 
                   hist = stock.history(start=start_dt, end=end_dt)
                   if hist.empty:
+                      print(f"  {ticker:<6} -> no price history")
                       continue
-                  if hist.index.tz is not None:
+                  if hasattr(hist.index, 'tz') and hist.index.tz is not None:
                       hist.index = hist.index.tz_localize(None)
+                  elif hasattr(hist.index, 'tz_convert'):
+                      hist.index = hist.index.tz_convert(None)
 
                   scored = 0
                   for rec_date, row in recs.iterrows():
-                      firm  = str(row.get("Firm","")).strip()
-                      grade = str(row.get("To Grade", row.get("toGrade",""))).strip().lower()
+                      firm  = str(row.get("GraderName", row.get("Firm",""))).strip()
+                      grade = str(row.get("ToGrade", row.get("To Grade", row.get("toGrade","")))).strip().lower()
                       if not firm or not grade:
                           continue
                       is_buy  = grade in BUY
@@ -98,9 +105,9 @@ jobs:
                       firm_scores[firm].append(score)
                       scored += 1
 
-                  print(f"  {ticker:<6} → {scored} calls scored")
+                  print(f"  {ticker:<6} -> {scored} calls scored")
               except Exception as e:
-                  print(f"  {ticker:<6} → ERROR: {e}")
+                  print(f"  {ticker:<6} -> ERROR: {e}")
 
           # Rank
           results = {
@@ -110,13 +117,13 @@ jobs:
           top10 = sorted(results.items(), key=lambda x: x[1]["avg"], reverse=True)[:10]
 
           print(f"\n{'='*65}")
-          print("  🏆  Top 10 קרנות/בנקי השקעות — תשואה ל-3 שנים")
+          print("  TOP 10 - Investment Banks / Funds - 3yr Returns")
           print(f"{'='*65}")
-          print(f"{'#':<4} {'שם הקרן / הבנק':<30} {'תשואה ממוצעת':>14} {'הצלחה':>8} {'המלצות':>9}")
+          print(f"{'#':<4} {'Firm':<32} {'Avg Return':>12} {'Win Rate':>9} {'Calls':>7}")
           print(f"{'-'*65}")
           for rank, (firm, d) in enumerate(top10, 1):
               win_rate = d["wins"] / d["n"] * 100
-              print(f"{rank:<4} {firm:<30} {d['avg']:>12.1f}% {win_rate:>7.1f}% {d['n']:>9}")
+              print(f"{rank:<4} {firm:<32} {d['avg']:>10.1f}% {win_rate:>7.1f}% {d['n']:>7}")
           print(f"{'='*65}")
-          print(f"\n  📌 {sum(d['n'] for _,d in top10)} המלצות מנותחות, {len(TICKERS)} מניות")
+          print(f"\n  Total: {sum(d['n'] for _,d in top10)} calls analyzed across {len(TICKERS)} stocks")
           PYEOF
