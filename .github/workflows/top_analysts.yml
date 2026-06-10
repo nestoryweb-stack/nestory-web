@@ -100,14 +100,20 @@ jobs:
                       if not is_buy and not is_sell:
                           continue
 
-                      prices_from = hist[hist.index >= rec_date]
+                      prices_from = hist[hist.index >= rec_date]["Close"].dropna()
                       if prices_from.empty:
                           continue
-                      price_in = prices_from.iloc[0]["Close"]
+                      price_in = prices_from.iloc[0]
+                      if price_in == 0:
+                          continue
 
                       exit_dt    = rec_date + timedelta(days=365)
-                      prices_out = hist[hist.index >= exit_dt]
-                      price_out  = prices_out.iloc[0]["Close"] if not prices_out.empty else hist.iloc[-1]["Close"]
+                      prices_out = hist[hist.index >= exit_dt]["Close"].dropna()
+                      if prices_out.empty:
+                          prices_out = hist["Close"].dropna()
+                      if prices_out.empty:
+                          continue
+                      price_out = prices_out.iloc[-1] if hist[hist.index >= exit_dt].empty else prices_out.iloc[0]
 
                       pct   = (price_out - price_in) / price_in * 100
                       score = pct if is_buy else -pct
