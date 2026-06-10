@@ -53,7 +53,8 @@ jobs:
           SELL = {"sell","strong sell","underperform","underweight","negative",
                   "reduce","market underperform","sector underperform"}
 
-          firm_scores = defaultdict(list)
+          firm_scores  = defaultdict(list)
+          rosenblatt_calls = []  # detailed log for Rosenblatt
 
           print(f"\nAnalyzing {len(TICKERS)} stocks ({start_dt.date()} -> {end_dt.date()})...\n")
 
@@ -120,6 +121,18 @@ jobs:
                       firm_scores[firm].append(score)
                       scored += 1
 
+                      if firm == "Rosenblatt":
+                          rosenblatt_calls.append({
+                              "ticker": ticker,
+                              "date": rec_date.date(),
+                              "grade": row.get("ToGrade",""),
+                              "direction": "BUY" if is_buy else "SELL",
+                              "price_in": price_in,
+                              "price_out": price_out,
+                              "return_pct": pct,
+                              "score": score,
+                          })
+
                   print(f"  {ticker:<6} -> {scored} calls scored")
               except Exception as e:
                   print(f"  {ticker:<6} -> ERROR: {e}")
@@ -142,4 +155,19 @@ jobs:
           print(f"{'='*65}")
           total_calls = sum(d['n'] for _,d in top10)
           print(f"\n  Total: {total_calls} calls analyzed, {len(results)} firms with 3+ calls")
+
+          # Rosenblatt detailed breakdown
+          print(f"\n\n{'='*80}")
+          print("  ROSENBLATT — All Calls Detail")
+          print(f"{'='*80}")
+          print(f"{'Date':<12} {'Ticker':<8} {'Direction':<8} {'Grade':<20} {'Buy@':>8} {'Exit@':>8} {'Return':>8}  Result")
+          print(f"{'-'*80}")
+          for c in sorted(rosenblatt_calls, key=lambda x: x["date"]):
+              result = "WIN" if c["score"] > 0 else "LOSS"
+              print(f"{str(c['date']):<12} {c['ticker']:<8} {c['direction']:<8} {c['grade']:<20} "
+                    f"{c['price_in']:>8.2f} {c['price_out']:>8.2f} {c['return_pct']:>7.1f}%  {result}")
+          print(f"{'='*80}")
+          wins  = sum(1 for c in rosenblatt_calls if c["score"] > 0)
+          avg_r = sum(c["score"] for c in rosenblatt_calls) / len(rosenblatt_calls) if rosenblatt_calls else 0
+          print(f"  {len(rosenblatt_calls)} calls | {wins} wins ({wins/len(rosenblatt_calls)*100:.1f}%) | avg score: {avg_r:.1f}%")
           PYEOF
